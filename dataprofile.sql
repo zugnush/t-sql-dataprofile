@@ -15,14 +15,14 @@ DECLARE @TextCol BIT = 1  -- Analyse all text (char/varchar/nvarchar) data type 
 DECLARE @NumCol BIT = 1   -- Analyse all numeric data type columns
 DECLARE @DateCol BIT = 1  -- Analyse all date data type data type columns
 DECLARE @LobCol BIT = 1   -- Analyse all VAR(char/nchar/binary) MAX data type columns (potentially time-consuming)
-DECLARE @AdvancedAnalysis BIT = 1 -- Perform advanced analysis (threshold counts/domain analysis) 
+DECLARE @AdvancedAnalysis BIT = 1 -- Perform advanced analysis (threshold counts/domain analysis)
                                   --(potentially time-consuming)
-DECLARE @DistinctValuesMinimum INT = 200 -- Minimum number of distinct values to suggest a reference 
+DECLARE @DistinctValuesMinimum INT = 200 -- Minimum number of distinct values to suggest a reference
                                          -- table and/or perform domain analysis
 DECLARE @BoundaryPercent NUMERIC(3,2) = 0.57 -- Percent of records at upper/lower threshold to suggest
                                              -- a possible anomaly
 DECLARE @NullBoundaryPercent NUMERIC(5,2) = 90.00 -- Percent of NULLs to suggest a possible anomaly
-DECLARE @DataTypePercentage INT = 2 -- Percentage variance allowed when suggesting another data type 
+DECLARE @DataTypePercentage INT = 2 -- Percentage variance allowed when suggesting another data type
                                     -- for a column
 -----------------------------------------------------------------------
 -- Process variables
@@ -46,9 +46,9 @@ BEGIN
 TRY
 -- Test that the schema and table exist
 SELECT
- @TableCheck = COUNT (*) 
-   FROM INFORMATION_SCHEMA.TABLES 
-   WHERE TABLE_SCHEMA = @TABLE_SCHEMA 
+ @TableCheck = COUNT (*)
+   FROM INFORMATION_SCHEMA.TABLES
+   WHERE TABLE_SCHEMA = @TABLE_SCHEMA
    AND TABLE_NAME = @TABLE_NAME
 IF @TableCheck <> 1
  BEGIN
@@ -177,125 +177,125 @@ IF @ROWCOUNT = 0
 -- Define the dynamic SQL used for each column to analyse
 -----------------------------------------------------------------------
 SET @SQLMETADATA = 'INSERT INTO #ProfileData (ColumnDataLength,COLUMN_NAME,TABLE_SCHEMA,TABLE_NAME,DataType,MaxDataLength,MinDataLength,AvgDataLength,MaxDate,MinDate,NoDateWithHourminuteSecond,NoDateWithSecond,NoIsNumeric,NoIsDate,NoNulls,NoZeroLength,NoDistinct)'
-DECLARE SQLMETADATA_CUR CURSOR LOCAL FAST_FORWARD FOR 
+DECLARE SQLMETADATA_CUR CURSOR LOCAL FAST_FORWARD FOR
  SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, DATA_TYPE FROM #ColumnList
-OPEN SQLMETADATA_CUR 
-FETCH NEXT FROM SQLMETADATA_CUR INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH, @DATA_TYPE 
-WHILE @@FETCH_STATUS = 0 
- BEGIN 
+OPEN SQLMETADATA_CUR
+FETCH NEXT FROM SQLMETADATA_CUR INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH, @DATA_TYPE
+WHILE @@FETCH_STATUS = 0
+ BEGIN
   SET @SQLMETADATA = @SQLMETADATA +'
   SELECT TOP 100 PERCENT ' + CAST(@CHARACTER_MAXIMUM_LENGTH AS VARCHAR(20)) + ' ,''' + QUOTENAME(@COLUMN_NAME) + '''
   ,''' + QUOTENAME(@TABLE_SCHEMA) + '''
   ,''' + QUOTENAME(@TABLE_NAME) + '''
   ,''' + @DATA_TYPE + ''''
    + CASE
-      WHEN @DATA_TYPE IN ('varchar', 'nvarchar', 'char', 'nchar') 
-	   AND @CHARACTER_MAXIMUM_LENGTH >= 0 
+      WHEN @DATA_TYPE IN ('varchar', 'nvarchar', 'char', 'nchar')
+	   AND @CHARACTER_MAXIMUM_LENGTH >= 0
 	     THEN + '
-  , MAX(LEN(' + QUOTENAME(@COLUMN_NAME) + ')) 
-  , MIN(LEN(' + QUOTENAME(@COLUMN_NAME) + ')) 
+  , MAX(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
+  , MIN(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
   , AVG(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
   ,NULL
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
   ,(SELECT COUNT (*) from '
-   + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE ISNUMERIC(' + QUOTENAME(@COLUMN_NAME) + ') = 1) 
+   + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE ISNUMERIC(' + QUOTENAME(@COLUMN_NAME) + ') = 1)
   ,(SELECT COUNT (*) from ' + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE TRY_CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS Date) IS NOT NULL ) '
   WHEN @DATA_TYPE IN ('numeric', 'int', 'bigint', 'tinyint', 'smallint', 'decimal', 'money', 'smallmoney', 'float','real') THEN + '
-  ,MAX(' + QUOTENAME(@COLUMN_NAME) + ') 
-  ,MIN(' + QUOTENAME(@COLUMN_NAME) + ') 
+  ,MAX(' + QUOTENAME(@COLUMN_NAME) + ')
+  ,MIN(' + QUOTENAME(@COLUMN_NAME) + ')
   ,AVG(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NUMERIC(36,2)))
   ,NULL
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
    WHEN @DATA_TYPE IN ('DateTime', 'SmallDateTime') THEN + '
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,MAX(' + QUOTENAME(@COLUMN_NAME) + ') 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,MAX(' + QUOTENAME(@COLUMN_NAME) + ')
   ,MIN(' + QUOTENAME(@COLUMN_NAME) + ')
-  ,(SELECT COUNT (*) from ' 
+  ,(SELECT COUNT (*) from '
    + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE (CONVERT(NUMERIC(20,12), ' + QUOTENAME(@COLUMN_NAME) + ' ) - FLOOR(CONVERT(NUMERIC(20,12), ' + QUOTENAME(@COLUMN_NAME) + ')) <> 0))
   ,(SELECT COUNT (*) from '
-   + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE DATEPART(ss,' + QUOTENAME(@COLUMN_NAME) + ') <> 0 OR DATEPART(mcs,' + QUOTENAME(@COLUMN_NAME) + ') <> 0) 
-  ,NULL 
+   + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE DATEPART(ss,' + QUOTENAME(@COLUMN_NAME) + ') <> 0 OR DATEPART(mcs,' + QUOTENAME(@COLUMN_NAME) + ') <> 0)
+  ,NULL
   ,NULL '
     WHEN @DATA_TYPE IN ('DateTime2') THEN + '
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,MAX(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NUMERIC(32,2))) 
-  ,MIN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NUMERIC(32,2))) 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,MAX(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NUMERIC(32,2)))
+  ,MIN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NUMERIC(32,2)))
   ,MIN(' + QUOTENAME(@COLUMN_NAME) + ')
   ,NULL
   ,NULL
-  ,NULL 
+  ,NULL
   ,NULL '
    WHEN @DATA_TYPE IN ('Date') THEN + '
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
   ,MAX('
-   + QUOTENAME(@COLUMN_NAME) + ') 
+   + QUOTENAME(@COLUMN_NAME) + ')
   ,MIN('
   + QUOTENAME(@COLUMN_NAME) + ')
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
    WHEN @DATA_TYPE IN ('xml') THEN + '
-  ,MAX(LEN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NVARCHAR(MAX)))) 
-  ,MIN(LEN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NVARCHAR(MAX)))) 
-  ,AVG(LEN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NVARCHAR(MAX)))) 
+  ,MAX(LEN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NVARCHAR(MAX))))
+  ,MIN(LEN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NVARCHAR(MAX))))
+  ,AVG(LEN(CAST(' + QUOTENAME(@COLUMN_NAME) + ' AS NVARCHAR(MAX))))
   ,NULL
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
   WHEN @DATA_TYPE IN ('varbinary','varchar','nvarchar') AND  @CHARACTER_MAXIMUM_LENGTH = -1 THEN + '
-  ,MAX(LEN(' + QUOTENAME(@COLUMN_NAME) + ')) 
-  ,MIN(LEN(' + QUOTENAME(@COLUMN_NAME) + ')) 
+  ,MAX(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
+  ,MIN(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
   ,AVG(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
   ,NULL
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
    WHEN @DATA_TYPE IN ('binary') THEN + '
-  ,MAX(LEN(' + QUOTENAME(@COLUMN_NAME) + ')) 
-  ,MIN(LEN(' + QUOTENAME(@COLUMN_NAME) + ')) 
+  ,MAX(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
+  ,MIN(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
   ,AVG(LEN(' + QUOTENAME(@COLUMN_NAME) + '))
   ,NULL
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
    WHEN @DATA_TYPE IN ('time') THEN + '
-  ,NULL 
-  ,NULL 
-  ,NULL 
-  ,MAX(' + QUOTENAME(@COLUMN_NAME) + ') 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,MAX(' + QUOTENAME(@COLUMN_NAME) + ')
   ,MIN(' + QUOTENAME(@COLUMN_NAME) + ')
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
    ELSE + '
-  ,NULL 
   ,NULL
   ,NULL
   ,NULL
   ,NULL
-  ,NULL 
-  ,NULL 
-  ,NULL 
+  ,NULL
+  ,NULL
+  ,NULL
+  ,NULL
   ,NULL '
   END + '
   ,(SELECT COUNT(*) FROM ' + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE ' + QUOTENAME(@COLUMN_NAME) + ' IS NULL)'
@@ -308,10 +308,10 @@ WHILE @@FETCH_STATUS = 0
   ,(SELECT COUNT(DISTINCT ' + QUOTENAME(@COLUMN_NAME) + ') FROM ' + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WHERE ' + QUOTENAME(@COLUMN_NAME) + ' IS NOT NULL )
   FROM ' + QUOTENAME(@TABLE_SCHEMA) + '.' + QUOTENAME(@TABLE_NAME) + ' WITH (NOLOCK)
   UNION'
- FETCH NEXT FROM SQLMETADATA_CUR INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH, @DATA_TYPE 
-END 
-CLOSE SQLMETADATA_CUR 
-DEALLOCATE SQLMETADATA_CUR 
+ FETCH NEXT FROM SQLMETADATA_CUR INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH, @DATA_TYPE
+END
+CLOSE SQLMETADATA_CUR
+DEALLOCATE SQLMETADATA_CUR
 SET @SQLMETADATA = LEFT(@SQLMETADATA, LEN(@SQLMETADATA) -5)
 EXEC (@SQLMETADATA)
 -----------------------------------------------------------------------
@@ -325,8 +325,8 @@ AS
    DISTINCT CU.COLUMN_NAME
   FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS TC
    INNER JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE CU
-     ON TC.CONSTRAINT_NAME = CU.CONSTRAINT_NAME 
-     AND TC.TABLE_SCHEMA = CU.TABLE_SCHEMA 
+     ON TC.CONSTRAINT_NAME = CU.CONSTRAINT_NAME
+     AND TC.TABLE_SCHEMA = CU.TABLE_SCHEMA
      AND TC.TABLE_NAME = CU.TABLE_NAME
      AND TC.TABLE_SCHEMA = @TABLE_SCHEMA
      AND TC.TABLE_NAME = @TABLE_NAME
@@ -358,7 +358,7 @@ UPDATE #ProfileData
  WHERE MinDataLength >= -2147483648
  AND MaxDataLength <= 2147483648
  AND DataType IN ('bigint')
- 
+
 UPDATE #ProfileData
   SET DataTypeComments = 'Possibly could be SMALLINT type. '
  WHERE MinDataLength >= -32768
@@ -426,29 +426,29 @@ IF OBJECT_ID('tempdb..#SparseThresholds') IS NOT NULL
   DROP TABLE tempdb..#SparseThresholds;
   CREATE TABLE #SparseThresholds (DataType VARCHAR(128), Threshold NUMERIC(9,4))
   INSERT INTO #SparseThresholds (DataType, Threshold)
-   VALUES 
+   VALUES
     ('tinyint',86),
-    ('smallint',76),    
-    ('int',64),    
-    ('bigint',52),    
-    ('real',64),    
-    ('float',52),    
-    ('money',64),    
-    ('smallmoney',64),    
-    ('smalldatetime',52),    
-    ('datetime',52),    
-    ('uniqueidentifier',43),    
-    ('date',69),    
-    ('datetime2',52),    
-    ('decimal',42),    
-    ('nuumeric',42),    
-    ('char',60),    
-    ('varchar',60),    
-    ('nchar',60),    
-    ('nvarchar',60),    
-    ('binary',60),    
-    ('varbinary',60),    
-    ('xml',60)    
+    ('smallint',76),
+    ('int',64),
+    ('bigint',52),
+    ('real',64),
+    ('float',52),
+    ('money',64),
+    ('smallmoney',64),
+    ('smalldatetime',52),
+    ('datetime',52),
+    ('uniqueidentifier',43),
+    ('date',69),
+    ('datetime2',52),
+    ('decimal',42),
+    ('nuumeric',42),
+    ('char',60),
+    ('varchar',60),
+    ('nchar',60),
+    ('nvarchar',60),
+    ('binary',60),
+    ('varbinary',60),
+    ('xml',60)
 ; WITH Sparse_CTE (COLUMN_NAME, SparseComment)
 AS
 (
@@ -463,7 +463,7 @@ FROM #ProfileData P
   ON P.DataType = T.DataType
 )
 UPDATE PT
-  SET PT.DataTypeComments = 
+  SET PT.DataTypeComments =
       CASE WHEN PT.DataTypeComments IS NULL THEN CTE.SparseComment
            ELSE ISNULL(PT.DataTypeComments,'') + CTE.SparseComment + '. '
       END
@@ -482,18 +482,18 @@ IF @AdvancedAnalysis = 1
     DROP TABLE tempdb..#LimitTest;
     CREATE TABLE #LimitTest (COLUMN_NAME VARCHAR(128), NoAtLimit BIGINT);
     DECLARE @advancedtestSQL VARCHAR(MAX) = 'INSERT INTO #LimitTest (COLUMN_NAME, NoAtLimit)' + CHAR(13)
-    SELECT @advancedtestSQL = @advancedtestSQL + 'SELECT '''+ COLUMN_NAME + ''', COUNT('+ COLUMN_NAME + ') FROM ' + @TABLE_SCHEMA + '.' + @TABLE_NAME + 
+    SELECT @advancedtestSQL = @advancedtestSQL + 'SELECT '''+ COLUMN_NAME + ''', COUNT('+ COLUMN_NAME + ') FROM ' + @TABLE_SCHEMA + '.' + @TABLE_NAME +
      CASE
        WHEN DataType IN ('numeric', 'int', 'bigint', 'tinyint', 'smallint', 'decimal', 'money', 'smallmoney', 'float','real') THEN ' WHERE '+ COLUMN_NAME + ' = ' + CAST(ISNULL(MaxDataLength,0) AS VARCHAR(40)) + ' OR '+ COLUMN_NAME + ' = ' + CAST(ISNULL(MinDataLength,0) AS VARCHAR(40)) + CHAR(13) + ' UNION' + CHAR(13)
        ELSE ' WHERE LEN('+ COLUMN_NAME + ') = ' + CAST(ISNULL(MaxDataLength,0) AS VARCHAR(40)) + ' OR LEN('+ COLUMN_NAME + ') = ' + CAST(ISNULL(MinDataLength,0) AS VARCHAR(40)) + CHAR(13) + ' UNION' + CHAR(13)
      END
-    FROM #ProfileData 
+    FROM #ProfileData
     WHERE DataType IN ('numeric', 'int', 'bigint', 'tinyint', 'smallint', 'decimal', 'money', 'smallmoney', 'float','real','varchar', 'nvarchar', 'char', 'nchar', 'binary')
-    SET @advancedtestSQL = LEFT(@advancedtestSQL,LEN(@advancedtestSQL) -6) 
+    SET @advancedtestSQL = LEFT(@advancedtestSQL,LEN(@advancedtestSQL) -6)
     EXEC (@advancedtestSQL)
     UPDATE M
       SET M.NoAtLimit = T.NoAtLimit
-         ,M.DataTypeComments = 
+         ,M.DataTypeComments =
            CASE
              WHEN CAST(T.NoAtLimit AS NUMERIC(36,2)) / CAST(@ROWCOUNT AS NUMERIC(36,2)) >= @BoundaryPercent THEN ISNULL(M.DataTypeComments,'') + 'Large numbers of data elements at the max/minvalues. '
              ELSE M.DataTypeComments
@@ -514,20 +514,20 @@ IF @AdvancedAnalysis = 1
    ,DomainPercent NUMERIC(7,4)
    );
    DECLARE @DOMAINSQL VARCHAR(MAX) = 'INSERT INTO #DomainAnalysis (DomainName, DomainElement, DomainCounter) '
-   DECLARE SQLDOMAIN_CUR CURSOR LOCAL FAST_FORWARD FOR 
-     SELECT COLUMN_NAME, DataType 
-	  FROM #ProfileData 
+   DECLARE SQLDOMAIN_CUR CURSOR LOCAL FAST_FORWARD FOR
+     SELECT COLUMN_NAME, DataType
+	  FROM #ProfileData
 	   WHERE NoDistinct < @DistinctValuesMinimum
-   OPEN SQLDOMAIN_CUR 
-   FETCH NEXT FROM SQLDOMAIN_CUR INTO @COLUMN_NAME, @DATA_TYPE 
-   WHILE @@FETCH_STATUS = 0 
-    BEGIN 
+   OPEN SQLDOMAIN_CUR
+   FETCH NEXT FROM SQLDOMAIN_CUR INTO @COLUMN_NAME, @DATA_TYPE
+   WHILE @@FETCH_STATUS = 0
+    BEGIN
      SET @DOMAINSQL = @DOMAINSQL + 'SELECT ''' + @COLUMN_NAME + ''' AS DomainName, CAST( '+ @COLUMN_NAME + ' AS VARCHAR(4000)) AS DomainElement, COUNT(ISNULL(CAST(' + @COLUMN_NAME + ' AS NVARCHAR(MAX)),'''')) AS DomainCounter FROM ' + @TABLE_SCHEMA + '.' + @TABLE_NAME + ' GROUP BY ' + @COLUMN_NAME + ''
      + ' UNION '
-     FETCH NEXT FROM SQLDOMAIN_CUR INTO @COLUMN_NAME, @DATA_TYPE 
-   END 
-  CLOSE SQLDOMAIN_CUR 
-  DEALLOCATE SQLDOMAIN_CUR 
+     FETCH NEXT FROM SQLDOMAIN_CUR INTO @COLUMN_NAME, @DATA_TYPE
+   END
+  CLOSE SQLDOMAIN_CUR
+  DEALLOCATE SQLDOMAIN_CUR
   SET @DOMAINSQL = LEFT(@DOMAINSQL, LEN(@DOMAINSQL) -5) + ' ORDER BY DomainName ASC, DomainCounter DESC '
    EXEC (@DOMAINSQL)
    -- Now calculate percentages (this approach is faster than doing it when performing the domain analysis)
@@ -535,7 +535,7 @@ IF @AdvancedAnalysis = 1
    AS
   (
    SELECT DomainName, SUM(ISNULL(DomainCounter,0)) AS DomainCounterTotal
-    FROM #DomainAnalysis 
+    FROM #DomainAnalysis
     GROUP BY DomainName
   )
   UPDATE D
@@ -567,5 +567,5 @@ BEGIN CATCH
  ,ERROR_PROCEDURE() AS ErrorProcedure
  ,ERROR_LINE() AS ErrorLine
  ,ERROR_MESSAGE() AS ErrorMessage;
- 
+
 END CATCH
